@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件管理 - 资金分析平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #0f1419;
+            --secondary-bg: #1a2332;
+            --accent-cyan: #00d4ff;
+            --accent-orange: #ff6b35;
+            --text-primary: #ffffff;
+            --text-secondary: #a0aec0;
+            --text-muted: #718096;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, var(--primary-bg) 0%, var(--secondary-bg) 100%);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+        
+        .glass-effect {
+            background: rgba(26, 35, 50, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--text-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-link {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent-cyan);
+            transition: width 0.3s ease;
+        }
+        
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        
+        .case-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .case-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 35px rgba(0, 212, 255, 0.2);
+        }
+        
+        .file-tree {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .file-tree::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .file-tree::-webkit-scrollbar-track {
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 3px;
+        }
+        
+        .file-tree::-webkit-scrollbar-thumb {
+            background: var(--accent-cyan);
+            border-radius: 3px;
+        }
+        
+        .tree-node {
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .tree-node:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+        
+        .tree-node.selected {
+            background: rgba(0, 212, 255, 0.2);
+            border-left: 3px solid var(--accent-cyan);
+        }
+        
+        .upload-zone {
+            border: 2px dashed rgba(0, 212, 255, 0.5);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone.dragover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.1);
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring-circle {
+            stroke-dasharray: 251.2;
+            stroke-dashoffset: 251.2;
+            transition: stroke-dashoffset 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), #0088cc);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            border: 2px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: var(--accent-cyan);
+            color: white;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .status-active { background: rgba(52, 211, 153, 0.2); color: #34d399; }
+        .status-pending { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .status-completed { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
+        .status-archived { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-2xl font-bold gradient-text">资金分析平台</a>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-8">
+                        <a href="index.html" class="nav-link text-white hover:text-cyan-400 px-3 py-2 text-sm font-medium">首页</a>
+                        <a href="fund-interaction.html" class="nav-link text-white hover:text-cyan-400 px-3 py-2 text-sm font-medium">资金交互</a>
+                        <a href="case-management.html" class="nav-link text-cyan-400 px-3 py-2 text-sm font-medium">案件管理</a>
+                        <a href="data-visualization.html" class="nav-link text-white hover:text-cyan-400 px-3 py-2 text-sm font-medium">数据可视化</a>
+                    </div>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-btn" class="text-white hover:text-cyan-400">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <main class="pt-20 min-h-screen">
+        <!-- 页面标题 -->
+        <section class="py-12 bg-gradient-to-r from-gray-900 to-gray-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <h1 class="text-4xl font-bold gradient-text mb-4">案件管理</h1>
+                    <p class="text-xl text-gray-400 max-w-3xl mx-auto">
+                        完整的案件生命周期管理，支持多格式文件上传、版本控制和批次追踪
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 功能区域 -->
+        <section class="py-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <!-- 左侧功能面板 -->
+                    <div class="lg:col-span-1 space-y-6">
+                        <!-- 快速操作 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <h3 class="text-lg font-semibold mb-4">快速操作</h3>
+                            <div class="space-y-3">
+                                <button id="create-case-btn" class="w-full btn-primary text-white font-semibold py-2 px-4 rounded-lg">
+                                    创建新案件
+                                </button>
+                                <button id="upload-files-btn" class="w-full btn-secondary font-semibold py-2 px-4 rounded-lg">
+                                    上传文件
+                                </button>
+                                <button id="batch-import-btn" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                    批量导入
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 统计概览 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <h3 class="text-lg font-semibold mb-4">统计概览</h3>
+                            <div class="space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">总案件数</span>
+                                    <span class="text-cyan-400 font-bold stats-total">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">活跃案件</span>
+                                    <span class="text-green-400 font-bold stats-active">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">总文件数</span>
+                                    <span class="text-orange-400 font-bold stats-files">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">本月新增</span>
+                                    <span class="text-purple-400 font-bold stats-monthly">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 文件类型分布 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <h3 class="text-lg font-semibold mb-4">文件类型分布</h3>
+                            <div id="file-type-chart" style="height: 200px;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 主要内容区域 -->
+                    <div class="lg:col-span-3 space-y-6">
+                        <!-- 文件上传区域 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <h2 class="text-xl font-semibold text-white mb-4">文件上传</h2>
+                            
+                            <!-- 拖拽上传区域 -->
+                            <div id="dropZone" class="upload-zone border-2 border-dashed border-cyan-400 rounded-lg p-8 text-center cursor-pointer hover:border-cyan-300 hover:bg-cyan-900/20 transition-colors">
+                                <div class="text-4xl mb-4">📁</div>
+                                <h3 class="text-lg font-medium text-white mb-2">拖拽文件到此处</h3>
+                                <p class="text-gray-400 mb-4">或点击选择文件</p>
+                                <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv,.txt,.pdf" class="hidden">
+                                <button onclick="document.getElementById('fileInput').click()" class="px-4 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors">
+                                    选择文件
+                                </button>
+                            </div>
+
+                            <!-- 文件列表 -->
+                            <div id="fileListArea" class="mt-4" style="display: none;">
+                                <h4 class="text-sm font-medium text-gray-400 mb-2">已选择的文件：</h4>
+                                <div id="fileList" class="space-y-2"></div>
+                            </div>
+
+                            <!-- 案件信息 -->
+                            <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">案件编号</label>
+                                    <input id="cm-case-id" class="w-full bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="CASE001">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">案件名称</label>
+                                    <input id="cm-case-name" class="w-full bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="案件名称">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">人员身份</label>
+                                    <select id="cm-person-type" class="w-full bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                                        <option value="嫌疑人">嫌疑人</option>
+                                        <option value="收赃人">收赃人</option>
+                                        <option value="排查人员">排查人员</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 分析选项 -->
+                            <div id="analysisOptions" class="mt-4">
+                                <!-- 动态生成的分析选项 -->
+                            </div>
+
+                            <!-- 上传按钮 -->
+                            <div class="mt-6 text-center">
+                                <button id="uploadBtn" disabled class="px-6 py-3 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors">
+                                    开始上传和分析
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 进度显示区域 -->
+                        <div id="progressArea" class="glass-effect rounded-xl p-6" style="display: none;">
+                            <h3 class="text-lg font-semibold text-white mb-4">处理进度</h3>
+                            <div class="space-y-4">
+                                <div class="flex justify-between text-sm text-gray-400">
+                                    <span id="progressText">准备就绪</span>
+                                    <span id="progressPercentage">0%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div id="progressBar" class="bg-cyan-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 结果显示区域 -->
+                        <div id="resultsArea" class="space-y-6" style="display: none;">
+                            <!-- 结果摘要 -->
+                            <div class="glass-effect rounded-xl p-6">
+                                <h3 class="text-lg font-semibold text-white mb-4">分析结果摘要</h3>
+                                <div id="resultsSummary"></div>
+                            </div>
+
+                            <!-- 数据表格 -->
+                            <div class="glass-effect rounded-xl p-6">
+                                <h3 class="text-lg font-semibold text-white mb-4">处理后的数据</h3>
+                                <div id="dataTableContainer" class="overflow-x-auto">
+                                    <!-- 动态生成的表格 -->
+                                </div>
+                            </div>
+
+                            <!-- 可视化图表 -->
+                            <div class="glass-effect rounded-xl p-6">
+                                <h3 class="text-lg font-semibold text-white mb-4">数据可视化</h3>
+                                <div id="visualizationContainer">
+                                    <!-- 动态生成的图表 -->
+                                </div>
+                            </div>
+
+                            <!-- 统计信息 -->
+                            <div class="glass-effect rounded-xl p-6">
+                                <h3 class="text-lg font-semibold text-white mb-4">统计信息</h3>
+                                <div id="statisticsContainer">
+                                    <!-- 动态生成的统计信息 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 搜索和筛选 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <div class="flex-1">
+                                    <input type="text" id="search-input" placeholder="搜索案件名称、编号或关键词..." 
+                                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                                </div>
+                                <div class="flex gap-2">
+                                    <select id="status-filter" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                                        <option value="">全部状态</option>
+                                        <option value="active">进行中</option>
+                                        <option value="pending">待处理</option>
+                                        <option value="completed">已完成</option>
+                                        <option value="archived">已归档</option>
+                                    </select>
+                                    <select id="date-filter" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                                        <option value="">全部时间</option>
+                                        <option value="today">今天</option>
+                                        <option value="week">本周</option>
+                                        <option value="month">本月</option>
+                                        <option value="quarter">本季度</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 案件列表 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <h3 class="text-xl font-semibold">案件列表</h3>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm text-gray-400">排序:</span>
+                                    <select id="sort-order" class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:border-cyan-400 focus:outline-none">
+                                        <option value="date-desc">按时间降序</option>
+                                        <option value="date-asc">按时间升序</option>
+                                        <option value="name-asc">按名称升序</option>
+                                        <option value="name-desc">按名称降序</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div id="cases-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- 案件卡片将通过JavaScript动态生成 -->
+                            </div>
+                            
+                            <!-- 分页 -->
+                            <div class="flex items-center justify-between mt-6 pt-6 border-t border-gray-700">
+                                <div class="text-sm text-gray-400">
+                                    显示第 <span id="page-start">1</span> - <span id="page-end">10</span> 条，共 <span id="total-count">24</span> 条记录
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button id="prev-page" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                                        上一页
+                                    </button>
+                                    <span id="current-page" class="px-3 py-1 bg-cyan-600 text-white rounded">1</span>
+                                    <button id="next-page" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                                        下一页
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 创建新案件模态框 -->
+    <div id="create-case-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="glass-effect rounded-xl p-6 max-w-2xl w-full mx-4">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-semibold text-white">创建新案件</h3>
+                <button id="close-create-modal" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <form id="create-case-form" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="case-name-input" class="block text-sm font-medium text-gray-400 mb-2">案件名称 *</label>
+                        <input type="text" id="case-name-input" required 
+                               class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+                               placeholder="输入案件名称">
+                    </div>
+                    
+                    <div>
+                        <label for="case-category-input" class="block text-sm font-medium text-gray-400 mb-2">案件分类</label>
+                        <select id="case-category-input" 
+                                class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                            <option value="资金调查">资金调查</option>
+                            <option value="洗钱调查">洗钱调查</option>
+                            <option value="跨境监管">跨境监管</option>
+                            <option value="诈骗调查">诈骗调查</option>
+                            <option value="合规检查">合规检查</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="case-priority-input" class="block text-sm font-medium text-gray-400 mb-2">优先级</label>
+                        <select id="case-priority-input" 
+                                class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                            <option value="high">高</option>
+                            <option value="medium" selected>中</option>
+                            <option value="low">低</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="case-assigned-input" class="block text-sm font-medium text-gray-400 mb-2">负责人</label>
+                        <input type="text" id="case-assigned-input" 
+                               class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+                               placeholder="输入负责人姓名">
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="case-description-input" class="block text-sm font-medium text-gray-400 mb-2">案件描述 *</label>
+                    <textarea id="case-description-input" required rows="4" 
+                              class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+                              placeholder="详细描述案件情况和调查目标"></textarea>
+                </div>
+                
+                <div>
+                    <label for="case-tags-input" class="block text-sm font-medium text-gray-400 mb-2">标签</label>
+                    <input type="text" id="case-tags-input" 
+                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+                           placeholder="输入标签，用逗号分隔">
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" id="cancel-create-case" 
+                            class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors">
+                        取消
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors">
+                        创建案件
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 文件上传模态框 -->
+    <div id="upload-modal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center backdrop-blur-sm">
+        <div class="glass-effect rounded-xl p-6 max-w-4xl w-full mx-4 flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-semibold">批量文件上传与配置</h3>
+                <button id="close-upload-modal" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">案件名称</label>
+                    <input type="text" id="upload-case-name" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white focus:border-cyan-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">案件编号</label>
+                    <input type="text" id="upload-case-id" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white focus:border-cyan-500 outline-none">
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-hidden flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="space-x-2">
+                        <input type="file" id="file-input" multiple accept=".xlsx,.xls,.pdf,.txt" class="hidden">
+                        <button onclick="document.getElementById('file-input').click()" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded text-sm">
+                            + 添加文件
+                        </button>
+                        <span class="text-xs text-gray-500">支持 Excel, PDF, TXT</span>
+                    </div>
+                    <div class="text-xs text-gray-400">
+                        默认设置：排查人员 | 单位：元
+                    </div>
+                </div>
+
+                <div class="bg-slate-800/50 rounded-t-lg border-b border-slate-700 grid grid-cols-12 gap-2 p-3 text-xs font-bold text-gray-300">
+                    <div class="col-span-4">文件名</div>
+                    <div class="col-span-2">大小</div>
+                    <div class="col-span-3">人员身份</div>
+                    <div class="col-span-2">金额单位</div>
+                    <div class="col-span-1 text-center">操作</div>
+                </div>
+                
+                <div id="file-staging-area" class="bg-slate-800/30 overflow-y-auto flex-1 border border-slate-700 rounded-b-lg p-1 space-y-1">
+                    <div class="text-center text-gray-500 py-10">暂无文件，请点击添加</div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-700">
+                <div id="upload-status-msg" class="mr-auto self-center text-sm"></div>
+                <button id="start-upload-btn" class="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-2 px-8 rounded shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    开始处理并入库
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 案件详情模态框 -->
+    <div id="case-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="glass-effect rounded-xl p-6 max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h3 id="case-detail-title" class="text-xl font-semibold">案件详情</h3>
+                <button id="close-case-detail" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 案件信息 -->
+                <div class="lg:col-span-2">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">案件编号</label>
+                            <input type="text" id="case-number" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">案件名称</label>
+                            <input type="text" id="case-name" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">案件描述</label>
+                            <textarea id="case-description" rows="4" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"></textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">创建时间</label>
+                                <input type="datetime" id="case-created" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none" readonly>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">案件状态</label>
+                                <select id="case-status" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                                    <option value="active">进行中</option>
+                                    <option value="pending">待处理</option>
+                                    <option value="completed">已完成</option>
+                                    <option value="archived">已归档</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 文件管理 -->
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">文件管理</h4>
+                    <div class="file-tree">
+                        <div id="case-files-tree">
+                            <!-- 文件树将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 space-y-2">
+                        <button class="w-full btn-primary text-white font-semibold py-2 px-4 rounded-lg text-sm">
+                            添加文件
+                        </button>
+                        <button class="w-full btn-secondary font-semibold py-2 px-4 rounded-lg text-sm">
+                            导出案件
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-700">
+                <button id="delete-case" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg">
+                    删除案件
+                </button>
+                <button id="save-case" class="px-4 py-2 btn-primary text-white rounded-lg">
+                    保存更改
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="bg-black bg-opacity-50 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <div class="text-2xl font-bold gradient-text mb-4">资金分析平台</div>
+                <p class="text-gray-400 mb-4">专业的金融数据分析解决方案</p>
+                <div class="border-t border-gray-700 pt-6">
+                    <p class="text-gray-500 text-sm">
+                        © 2024 资金分析平台. 专业的金融数据分析解决方案.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 案件管理页面逻辑
+        document.addEventListener('DOMContentLoaded', function() {
+            initCaseManagement();
+        });
+
+        function initCaseManagement() {
+            // 初始化移动端菜单
+            initMobileMenu();
+            
+            // 初始化案件管理功能
+            initFileTypeChart();
+            initCaseGrid();
+            initUploadModal();
+            initCaseDetailModal();
+            
+            console.log('案件管理页面已加载');
+        }
+
+        // 移动端菜单
+        function initMobileMenu() {
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            
+            if (mobileMenuBtn) {
+                mobileMenuBtn.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+        }
+
+        // 初始化文件类型分布图表
+        function initFileTypeChart() {
+            const chartDom = document.getElementById('file-type-chart');
+            const myChart = echarts.init(chartDom);
+            
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: 'rgba(26, 35, 50, 0.9)',
+                    borderColor: '#00d4ff',
+                    textStyle: { color: '#ffffff' }
+                },
+                series: [{
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    center: ['50%', '50%'],
+                    data: [
+                        { value: 45, name: 'Excel文件', itemStyle: { color: '#00d4ff' } },
+                        { value: 30, name: 'PDF文件', itemStyle: { color: '#ff6b35' } },
+                        { value: 15, name: 'TXT文件', itemStyle: { color: '#34d399' } },
+                        { value: 10, name: '其他', itemStyle: { color: '#9ca3af' } }
+                    ],
+                    label: {
+                        color: '#ffffff',
+                        fontSize: 12
+                    },
+                    labelLine: {
+                        lineStyle: { color: '#ffffff' }
+                    }
+                }]
+            };
+            
+            myChart.setOption(option);
+        }
+
+        // 初始化案件网格
+        function initCaseGrid() {
+            fetch('/api/cases')
+                .then(r => r.json())
+                .then(j => {
+                    const cases = j && j.success ? j.data : [];
+                    renderCasesGrid(cases);
+                })
+                .catch(() => {
+                    renderCasesGrid([]);
+                });
+        }
+
+        // 更新统计信息
+        function updateStatistics() {
+            const statsElements = {
+                total: document.querySelector('.stats-total'),
+                active: document.querySelector('.stats-active'),
+                files: document.querySelector('.stats-files'),
+                monthly: document.querySelector('.stats-monthly')
+            };
+            fetch('/api/cases')
+                .then(r => r.json())
+                .then(j => {
+                    const total = j && j.success ? j.data.length : 0;
+                    if (statsElements.total) statsElements.total.textContent = total;
+                    if (statsElements.active) statsElements.active.textContent = 0;
+                    if (statsElements.files) statsElements.files.textContent = 0;
+                    if (statsElements.monthly) statsElements.monthly.textContent = 0;
+                })
+                .catch(() => {
+                    if (statsElements.total) statsElements.total.textContent = 0;
+                    if (statsElements.active) statsElements.active.textContent = 0;
+                    if (statsElements.files) statsElements.files.textContent = 0;
+                    if (statsElements.monthly) statsElements.monthly.textContent = 0;
+                });
+        }
+
+        // 生成模拟案件数据
+        function generateMockCases() {
+            const statuses = ['active', 'pending', 'completed', 'archived'];
+            const statusLabels = {
+                active: { text: '进行中', class: 'status-active' },
+                pending: { text: '待处理', class: 'status-pending' },
+                completed: { text: '已完成', class: 'status-completed' },
+                archived: { text: '已归档', class: 'status-archived' }
+            };
+            
+            const caseTypes = ['经济纠纷', '洗钱嫌疑', '资金追踪', '商业贿赂', '金融诈骗'];
+            
+            return Array.from({ length: 24 }, (_, i) => {
+                const status = statuses[Math.floor(Math.random() * statuses.length)];
+                const type = caseTypes[Math.floor(Math.random() * caseTypes.length)];
+                const fileCount = Math.floor(Math.random() * 50) + 5;
+                const createDate = new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1);
+                
+                return {
+                    id: `case-${String(i + 1).padStart(3, '0')}`,
+                    name: `${type}调查案件${i + 1}`,
+                    type: type,
+                    status: status,
+                    statusLabel: statusLabels[status],
+                    fileCount: fileCount,
+                    createDate: createDate,
+                    description: `这是一个${type}相关的调查案件，涉及多个账户的资金流向分析。`
+                };
+            });
+        }
+
+        // 渲染案件网格
+        function renderCasesGrid(cases) {
+            const grid = document.getElementById('cases-grid');
+            grid.innerHTML = '';
+            if (!cases || cases.length === 0) {
+                grid.innerHTML = '<div class="text-gray-400">暂无案件，请先上传</div>';
+                return;
+            }
+            cases.forEach(item => {
+                const cid = item.case_id;
+                const name = item.case_name;
+                const card = document.createElement('div');
+                card.className = 'case-card glass-effect rounded-xl p-6 transition-all duration-300 border border-transparent';
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex-1">
+                            <h4 class="text-lg font-semibold mb-1 text-cyan-400">${name}</h4>
+                            <p class="text-sm text-gray-400 mb-2">案件编号: ${cid}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-700">
+                        <div class="flex space-x-2">
+                            <a href="/page/single-analysis?case_id=${cid}" class="text-cyan-400 hover:text-cyan-300 text-sm">单账单分析</a>
+                            <a href="/page/multi-analysis?case_id=${cid}" class="text-orange-400 hover:text-orange-300 text-sm ml-2">多账单分析</a>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // 初始化搜索和筛选
+        function initSearchAndFilter() {
+            const searchInput = document.getElementById('search-input');
+            const statusFilter = document.getElementById('status-filter');
+            const dateFilter = document.getElementById('date-filter');
+            const sortOrder = document.getElementById('sort-order');
+            
+            [searchInput, statusFilter, dateFilter, sortOrder].forEach(element => {
+                element.addEventListener('input', filterCases);
+            });
+        }
+
+        // 筛选案件
+        function filterCases() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const statusFilter = document.getElementById('status-filter').value;
+            const dateFilter = document.getElementById('date-filter').value;
+            const sortOrder = document.getElementById('sort-order').value;
+            
+            let cases = generateMockCases();
+            
+            // 搜索筛选
+            if (searchTerm) {
+                cases = cases.filter(caseItem => 
+                    caseItem.name.toLowerCase().includes(searchTerm) ||
+                    caseItem.id.toLowerCase().includes(searchTerm) ||
+                    caseItem.description.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            // 状态筛选
+            if (statusFilter) {
+                cases = cases.filter(caseItem => caseItem.status === statusFilter);
+            }
+            
+            // 日期筛选
+            if (dateFilter) {
+                const now = new Date();
+                cases = cases.filter(caseItem => {
+                    const caseDate = caseItem.createDate;
+                    switch (dateFilter) {
+                        case 'today':
+                            return caseDate.toDateString() === now.toDateString();
+                        case 'week':
+                            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                            return caseDate >= weekAgo;
+                        case 'month':
+                            return caseDate.getMonth() === now.getMonth() && 
+                                   caseDate.getFullYear() === now.getFullYear();
+                        case 'quarter':
+                            const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+                            return caseDate >= quarterStart;
+                        default:
+                            return true;
+                    }
+                });
+            }
+            
+            // 排序
+            cases.sort((a, b) => {
+                switch (sortOrder) {
+                    case 'date-asc':
+                        return a.createDate - b.createDate;
+                    case 'name-asc':
+                        return a.name.localeCompare(b.name);
+                    case 'name-desc':
+                        return b.name.localeCompare(a.name);
+                    default: // date-desc
+                        return b.createDate - a.createDate;
+                }
+            });
+            
+            renderCasesGrid(cases);
+        }
+
+        // 初始化上传模态框
+        function initUploadModal() {
+            const uploadBtn = document.getElementById('upload-files-btn');
+            const modal = document.getElementById('upload-modal');
+            const closeBtn = document.getElementById('close-upload-modal');
+            const fileInput = document.getElementById('file-input');
+
+            if (uploadBtn && modal) {
+                uploadBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+            }
+            if (closeBtn && modal) {
+                closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+            }
+
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    // 留给 upload-manager.js 统一处理；这里仅确保不抛错
+                });
+            }
+        }
+
+        // 处理文件上传
+        function handleFiles(files) {
+            const fileList = document.getElementById('file-list');
+            const uploadProgress = document.getElementById('upload-progress');
+            
+            uploadProgress.classList.remove('hidden');
+            fileList.innerHTML = '';
+            
+            Array.from(files).forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'flex items-center justify-between p-3 bg-gray-800 bg-opacity-50 rounded-lg';
+                
+                fileItem.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-cyan-600 bg-opacity-30 rounded-lg flex items-center justify-center">
+                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium">${file.name}</div>
+                            <div class="text-xs text-gray-400">${formatFileSize(file.size)}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-24 bg-gray-700 rounded-full h-2">
+                            <div class="progress-bar bg-cyan-400 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <span class="text-xs text-gray-400">0%</span>
+                    </div>
+                `;
+                
+                fileList.appendChild(fileItem);
+                
+                // 模拟上传进度
+                simulateUpload(fileItem, index);
+            });
+        }
+
+        // 模拟上传进度
+        function simulateUpload(fileItem, index) {
+            const progressBar = fileItem.querySelector('.progress-bar');
+            const percentText = fileItem.querySelector('span');
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 10;
+                if (progress > 100) progress = 100;
+                
+                progressBar.style.width = progress + '%';
+                percentText.textContent = Math.floor(progress) + '%';
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    fileItem.classList.add('bg-green-600', 'bg-opacity-20');
+                    percentText.textContent = '完成';
+                }
+            }, 100 + index * 50);
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 初始化案件详情模态框
+        function initCaseDetailModal() {
+            const modal = document.getElementById('case-detail-modal');
+            const closeBtn = document.getElementById('close-case-detail');
+            const saveBtn = document.getElementById('save-case');
+            const deleteBtn = document.getElementById('delete-case');
+            
+            closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+            saveBtn.addEventListener('click', saveCaseChanges);
+            deleteBtn.addEventListener('click', deleteCurrentCase);
+        }
+
+        // 显示案件详情
+        function showCaseDetail(caseItem) {
+            const modal = document.getElementById('case-detail-modal');
+            
+            document.getElementById('case-detail-title').textContent = caseItem.name;
+            document.getElementById('case-number').value = caseItem.id;
+            document.getElementById('case-name').value = caseItem.name;
+            document.getElementById('case-description').value = caseItem.description;
+            document.getElementById('case-created').value = caseItem.createDate.toLocaleString('zh-CN');
+            document.getElementById('case-status').value = caseItem.status;
+            
+            generateCaseFilesTree(caseItem);
+            modal.classList.remove('hidden');
+        }
+
+        // 生成案件文件树
+        function generateCaseFilesTree(caseItem) {
+            const treeContainer = document.getElementById('case-files-tree');
+            treeContainer.innerHTML = '';
+            
+            // 模拟文件结构
+            const fileStructure = [
+                { name: '交易记录', type: 'folder', children: [
+                    { name: '银行流水.xlsx', type: 'excel' },
+                    { name: '交易明细.pdf', type: 'pdf' }
+                ]},
+                { name: '证据材料', type: 'folder', children: [
+                    { name: '合同文件.pdf', type: 'pdf' },
+                    { name: '通信记录.txt', type: 'txt' }
+                ]},
+                { name: '分析报告', type: 'folder', children: [
+                    { name: '初步分析报告.docx', type: 'word' },
+                    { name: '数据图表.xlsx', type: 'excel' }
+                ]}
+            ];
+            
+            function createTreeNode(item, level = 0) {
+                const node = document.createElement('div');
+                node.className = 'tree-node';
+                node.style.paddingLeft = (12 + level * 16) + 'px';
+                
+                const icon = getFileIcon(item.type);
+                node.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        ${icon}
+                        <span class="text-sm">${item.name}</span>
+                    </div>
+                `;
+                
+                if (item.type === 'folder' && item.children) {
+                    node.addEventListener('click', () => {
+                        node.classList.toggle('selected');
+                        // 展开/折叠子节点
+                    });
+                    
+                    treeContainer.appendChild(node);
+                    
+                    item.children.forEach(child => {
+                        createTreeNode(child, level + 1);
+                    });
+                } else {
+                    node.addEventListener('click', () => {
+                        document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+                        node.classList.add('selected');
+                    });
+                    treeContainer.appendChild(node);
+                }
+            }
+            
+            fileStructure.forEach(item => createTreeNode(item));
+        }
+
+        // 获取文件图标
+        function getFileIcon(type) {
+            const icons = {
+                folder: '<svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>',
+                excel: '<svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm8 2a1 1 0 100 2h2a1 1 0 100-2h-2z" clip-rule="evenodd"></path></svg>',
+                pdf: '<svg class="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg>',
+                txt: '<svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path></svg>',
+                word: '<svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path></svg>'
+            };
+            return icons[type] || icons.txt;
+        }
+
+        // 保存案件更改
+        function saveCaseChanges() {
+            const modal = document.getElementById('case-detail-modal');
+            const caseId = document.getElementById('case-number').value;
+            
+            const updateData = {
+                name: document.getElementById('case-name').value,
+                description: document.getElementById('case-description').value,
+                status: document.getElementById('case-status').value
+            };
+            
+            try {
+                window.caseManager.updateCase(caseId, updateData);
+                showNotification('案件信息已保存', 'success');
+                
+                // 刷新案件列表
+                initCaseGrid();
+                
+                // 关闭模态框
+                modal.classList.add('hidden');
+                
+            } catch (error) {
+                showNotification('保存失败：' + error.message, 'error');
+            }
+        }
+
+        // 删除当前案件
+        function deleteCurrentCase() {
+            const modal = document.getElementById('case-detail-modal');
+            const caseId = document.getElementById('case-number').value;
+            const caseName = document.getElementById('case-name').value;
+            
+            if (confirm(`确定要删除案件 "${caseName}" 吗？此操作不可撤销。`)) {
+                try {
+                    window.caseManager.deleteCase(caseId);
+                    showNotification('案件已删除', 'success');
+                    
+                    // 刷新案件列表
+                    initCaseGrid();
+                    
+                    // 关闭模态框
+                    modal.classList.add('hidden');
+                    
+                } catch (error) {
+                    showNotification('删除失败：' + error.message, 'error');
+                }
+            }
+        }
+
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500 text-white' :
+                type === 'error' ? 'bg-red-500 text-white' :
+                type === 'warning' ? 'bg-yellow-500 text-white' :
+                'bg-blue-500 text-white'
+            }`;
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+
+            // 3秒后自动移除
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+
+            // 点击移除
+            notification.addEventListener('click', () => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            });
+        }
+
+        // 其他功能函数
+        window.editCase = function(caseId) {
+            const caseItem = window.caseManager.getCase(caseId);
+            if (caseItem) {
+                showCaseDetail(caseItem);
+            }
+        };
+        
+        window.exportCase = function(caseId) {
+            try {
+                const caseData = window.caseManager.exportCase(caseId, 'json');
+                const blob = new Blob([caseData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `case_${caseId}_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+                showNotification('案件导出成功', 'success');
+                
+            } catch (error) {
+                showNotification('导出失败：' + error.message, 'error');
+            }
+        };
+        
+        window.deleteCase = function(caseId) {
+            const caseItem = window.caseManager.getCase(caseId);
+            if (caseItem && confirm(`确定要删除案件 "${caseItem.name}" 吗？`)) {
+                try {
+                    window.caseManager.deleteCase(caseId);
+                    showNotification('案件已删除', 'success');
+                    
+                    // 刷新案件列表
+                    initCaseGrid();
+                    
+                } catch (error) {
+                    showNotification('删除失败：' + error.message, 'error');
+                }
+            }
+        };
+    </script>
+    
+    <script src="/static/js/upload-manager.js"></script>
+</body>
+</html>
+        function getFileIcon(type) {
+            const icons = {
+                folder: '<svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path

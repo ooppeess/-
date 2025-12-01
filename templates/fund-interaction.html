@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资金交互分析 - 资金分析平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+    <link href="https://unpkg.com/vis-network@9.1.2/dist/dist/vis-network.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #0f1419;
+            --secondary-bg: #1a2332;
+            --accent-cyan: #00d4ff;
+            --accent-orange: #ff6b35;
+            --text-primary: #ffffff;
+            --text-secondary: #a0aec0;
+            --text-muted: #718096;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, var(--primary-bg) 0%, var(--secondary-bg) 100%);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+        
+        .glass-effect {
+            background: rgba(26, 35, 50, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--text-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-link {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent-cyan);
+            transition: width 0.3s ease;
+        }
+        
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-orange));
+            height: 4px;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+        
+        .filter-card {
+            transition: all 0.3s ease;
+        }
+        
+        .filter-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.15);
+        }
+        
+        .result-table {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .result-table::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .result-table::-webkit-scrollbar-track {
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 3px;
+        }
+        
+        .result-table::-webkit-scrollbar-thumb {
+            background: var(--accent-cyan);
+            border-radius: 3px;
+        }
+        
+        .network-container {
+            height: 500px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(15, 20, 25, 0.5);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-pending { background-color: #fbbf24; }
+        .status-running { background-color: #60a5fa; animation: pulse 2s infinite; }
+        .status-completed { background-color: #34d399; }
+        .status-error { background-color: #f87171; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), #0088cc);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            border: 2px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: var(--accent-cyan);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="index.html" class="text-2xl font-bold gradient-text">资金分析平台</a>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-8">
+                        <a href="index.html" class="nav-link text-white hover:text-cyan-400 px-3 py-2 text-sm font-medium">首页</a>
+                        <a href="fund-interaction.html" class="nav-link text-cyan-400 px-3 py-2 text-sm font-medium">资金交互</a>
+                        <a href="case-management.html" class="nav-link text-white hover:text-cyan-400 px-3 py-2 text-sm font-medium">案件管理</a>
+                        <a href="data-visualization.html" class="nav-link text-white hover:text-cyan-400 px-3 py-2 text-sm font-medium">数据可视化</a>
+                    </div>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-btn" class="text-white hover:text-cyan-400">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <main class="pt-20 min-h-screen">
+        <!-- 页面标题 -->
+        <section class="py-12 bg-gradient-to-r from-gray-900 to-gray-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <h1 class="text-4xl font-bold gradient-text mb-4">资金交互分析</h1>
+                    <p class="text-xl text-gray-400 max-w-3xl mx-auto">
+                        智能分析资金往来关系，识别关键交易模式，支持22种交互类型检测
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 分析控制面板 -->
+        <section class="py-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- 筛选条件面板 -->
+                    <div class="lg:col-span-1">
+                        <div class="glass-effect rounded-xl p-6 filter-card">
+                            <h3 class="text-xl font-semibold mb-6 flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                                </svg>
+                                分析条件
+                            </h3>
+                            
+                            <!-- 案件选择 -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">选择案件</label>
+                                <select id="case-select" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                                    <option value="">请选择案件</option>
+                                    <option value="case-001">案件001 - 经济纠纷调查</option>
+                                    <option value="case-002">案件002 - 洗钱嫌疑分析</option>
+                                    <option value="case-003">案件003 - 资金追踪</option>
+                                    <option value="case-004">案件004 - 商业贿赂调查</option>
+                                </select>
+                            </div>
+                            
+                            <!-- 人员选择 -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">分析人员</label>
+                                <div class="space-y-2 max-h-32 overflow-y-auto">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="mr-2 text-cyan-400" value="person-1">
+                                        <span class="text-sm">张三 (嫌疑人A)</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="mr-2 text-cyan-400" value="person-2">
+                                        <span class="text-sm">李四 (嫌疑人B)</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="mr-2 text-cyan-400" value="person-3">
+                                        <span class="text-sm">王五 (关键证人)</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="mr-2 text-cyan-400" value="person-4">
+                                        <span class="text-sm">赵六 (相关人员)</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="mr-2 text-cyan-400" value="person-5">
+                                        <span class="text-sm">钱七 (相关人员)</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- 时间范围 -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">时间范围</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="date" id="start-date" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-400 focus:outline-none" value="2024-01-01">
+                                    <input type="date" id="end-date" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-400 focus:outline-none" value="2024-12-31">
+                                </div>
+                            </div>
+                            
+                            <!-- 金额范围 -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">金额范围 (元)</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="number" id="min-amount" placeholder="最小金额" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-400 focus:outline-none" value="0">
+                                    <input type="number" id="max-amount" placeholder="最大金额" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-400 focus:outline-none" value="1000000">
+                                </div>
+                            </div>
+                            
+                            <!-- 交互类型 -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">交互类型</label>
+                                <select id="interaction-type" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-cyan-400 focus:outline-none">
+                                    <option value="all">全部类型</option>
+                                    <option value="bidirectional">双向交互</option>
+                                    <option value="single-direction">单向主导</option>
+                                    <option value="suspicious">可疑交易</option>
+                                </select>
+                            </div>
+                            
+                            <!-- 操作按钮 -->
+                            <div class="space-y-3">
+                                <button id="start-analysis" class="w-full btn-primary text-white font-semibold py-3 px-4 rounded-lg">
+                                    开始分析
+                                </button>
+                                <button id="reset-filters" class="w-full btn-secondary font-semibold py-2 px-4 rounded-lg">
+                                    重置条件
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 分析结果展示区 -->
+                    <div class="lg:col-span-2 space-y-6">
+                        <!-- 分析状态 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold">分析状态</h3>
+                                <div id="analysis-status" class="flex items-center text-sm text-gray-400">
+                                    <span class="status-indicator status-pending"></span>
+                                    等待开始分析
+                                </div>
+                            </div>
+                            
+                            <!-- 进度条 -->
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm text-gray-400 mb-2">
+                                    <span>分析进度</span>
+                                    <span id="progress-text">0%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div id="progress-bar" class="progress-bar w-0 h-2 rounded-full"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- 统计信息 -->
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div class="text-center">
+                                    <div id="total-transactions" class="text-2xl font-bold text-cyan-400">0</div>
+                                    <div class="text-xs text-gray-400">总交易数</div>
+                                </div>
+                                <div class="text-center">
+                                    <div id="total-amount" class="text-2xl font-bold text-green-400">¥0</div>
+                                    <div class="text-xs text-gray-400">总金额</div>
+                                </div>
+                                <div class="text-center">
+                                    <div id="interaction-pairs" class="text-2xl font-bold text-orange-400">0</div>
+                                    <div class="text-xs text-gray-400">交互对数</div>
+                                </div>
+                                <div class="text-center">
+                                    <div id="analysis-time" class="text-2xl font-bold text-purple-400">0s</div>
+                                    <div class="text-xs text-gray-400">分析耗时</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 分析结果表格 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold">交互关系详情</h3>
+                                <div class="flex space-x-2">
+                                    <button id="export-csv" class="text-sm bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">
+                                        导出CSV
+                                    </button>
+                                    <button id="refresh-results" class="text-sm bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1 rounded">
+                                        刷新
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="result-table">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-800 sticky top-0">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left">交易双方</th>
+                                            <th class="px-4 py-3 text-left">交易次数</th>
+                                            <th class="px-4 py-3 text-left">总金额(元)</th>
+                                            <th class="px-4 py-3 text-left">交互类型</th>
+                                            <th class="px-4 py-3 text-left">首次交易</th>
+                                            <th class="px-4 py-3 text-left">末次交易</th>
+                                            <th class="px-4 py-3 text-left">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="results-table-body">
+                                        <tr>
+                                            <td colspan="7" class="px-4 py-8 text-center text-gray-400">
+                                                暂无数据，请先开始分析
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- 网络关系图 -->
+                        <div class="glass-effect rounded-xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold">关系网络图</h3>
+                                <div class="flex space-x-2">
+                                    <button id="layout-hierarchical" class="text-sm bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">
+                                        层次布局
+                                    </button>
+                                    <button id="layout-force" class="text-sm bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1 rounded">
+                                        力导向布局
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="network-graph" class="network-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-black bg-opacity-50 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <div class="text-2xl font-bold gradient-text mb-4">资金分析平台</div>
+                <p class="text-gray-400 mb-4">专业的金融数据分析解决方案</p>
+                <div class="border-t border-gray-700 pt-6">
+                    <p class="text-gray-500 text-sm">
+                        © 2024 资金分析平台. 专业的金融数据分析解决方案.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 资金交互分析页面逻辑
+        document.addEventListener('DOMContentLoaded', function() {
+            initFundInteractionAnalysis();
+        });
+
+        function initFundInteractionAnalysis() {
+            // 初始化移动端菜单
+            initMobileMenu();
+            
+            // 初始化分析功能
+            initAnalysisControls();
+            initNetworkGraph();
+            
+            console.log('资金交互分析页面已加载');
+        }
+
+        // 移动端菜单
+        function initMobileMenu() {
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            
+            if (mobileMenuBtn) {
+                mobileMenuBtn.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+        }
+
+        // 分析控制功能
+        function initAnalysisControls() {
+            const startAnalysisBtn = document.getElementById('start-analysis');
+            const resetFiltersBtn = document.getElementById('reset-filters');
+            const exportCsvBtn = document.getElementById('export-csv');
+            const refreshResultsBtn = document.getElementById('refresh-results');
+            
+            startAnalysisBtn.addEventListener('click', startAnalysis);
+            resetFiltersBtn.addEventListener('click', resetFilters);
+            exportCsvBtn.addEventListener('click', exportToCSV);
+            refreshResultsBtn.addEventListener('click', refreshResults);
+        }
+
+        // 开始分析
+        async function startAnalysis() {
+            const caseSelect = document.getElementById('case-select');
+            const selectedPersons = document.querySelectorAll('input[type="checkbox"]:checked');
+            
+            if (!caseSelect.value) {
+                alert('请先选择案件');
+                return;
+            }
+            
+            if (selectedPersons.length < 2) {
+                alert('请至少选择2个人员进行分析');
+                return;
+            }
+            
+            // 更新状态
+            updateAnalysisStatus('running', '分析中...');
+            
+            // 模拟异步分析过程
+            await simulateAnalysis();
+            
+            // 显示结果
+            displayAnalysisResults();
+            updateAnalysisStatus('completed', '分析完成');
+        }
+
+        // 模拟分析过程
+        function simulateAnalysis() {
+            return new Promise((resolve) => {
+                let progress = 0;
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                
+                const interval = setInterval(() => {
+                    progress += Math.random() * 15;
+                    if (progress > 100) progress = 100;
+                    
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = Math.floor(progress) + '%';
+                    
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        setTimeout(resolve, 500);
+                    }
+                }, 200);
+            });
+        }
+
+        // 更新分析状态
+        function updateAnalysisStatus(status, message) {
+            const statusElement = document.getElementById('analysis-status');
+            const indicator = statusElement.querySelector('.status-indicator');
+            
+            // 移除所有状态类
+            indicator.classList.remove('status-pending', 'status-running', 'status-completed', 'status-error');
+            indicator.classList.add('status-' + status);
+            
+            statusElement.lastChild.textContent = message;
+        }
+
+        // 显示分析结果
+        function displayAnalysisResults() {
+            // 更新统计数据
+            document.getElementById('total-transactions').textContent = '1,247';
+            document.getElementById('total-amount').textContent = '¥2,456,890';
+            document.getElementById('interaction-pairs').textContent = '28';
+            document.getElementById('analysis-time').textContent = '45s';
+            
+            // 生成模拟结果数据
+            const mockData = generateMockAnalysisResults();
+            populateResultsTable(mockData);
+            updateNetworkGraph(mockData);
+        }
+
+        // 生成模拟分析结果
+        function generateMockAnalysisResults() {
+            const persons = ['张三', '李四', '王五', '赵六', '钱七'];
+            const interactions = [];
+            
+            for (let i = 0; i < persons.length; i++) {
+                for (let j = i + 1; j < persons.length; j++) {
+                    const transactionCount = Math.floor(Math.random() * 50) + 5;
+                    const totalAmount = Math.floor(Math.random() * 500000) + 10000;
+                    const interactionTypes = ['双向交互', '单向主导', '可疑交易'];
+                    const type = interactionTypes[Math.floor(Math.random() * interactionTypes.length)];
+                    
+                    interactions.push({
+                        from: persons[i],
+                        to: persons[j],
+                        count: transactionCount,
+                        amount: totalAmount,
+                        type: type,
+                        firstDate: '2024-01-' + String(Math.floor(Math.random() * 28) + 1).padStart(2, '0'),
+                        lastDate: '2024-12-' + String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')
+                    });
+                }
+            }
+            
+            return interactions.sort((a, b) => b.amount - a.amount);
+        }
+
+        // 填充结果表格
+        function populateResultsTable(data) {
+            const tbody = document.getElementById('results-table-body');
+            tbody.innerHTML = '';
+            
+            data.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.className = index % 2 === 0 ? 'bg-gray-800 bg-opacity-30' : 'bg-gray-700 bg-opacity-30';
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3">${item.from} ↔ ${item.to}</td>
+                    <td class="px-4 py-3">${item.count}</td>
+                    <td class="px-4 py-3">¥${item.amount.toLocaleString()}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded text-xs ${getTypeColor(item.type)}">${item.type}</span>
+                    </td>
+                    <td class="px-4 py-3">${item.firstDate}</td>
+                    <td class="px-4 py-3">${item.lastDate}</td>
+                    <td class="px-4 py-3">
+                        <button onclick="showTransactionDetails('${item.from}', '${item.to}')" 
+                                class="text-cyan-400 hover:text-cyan-300 text-xs">
+                            查看详情
+                        </button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // 获取交互类型颜色
+        function getTypeColor(type) {
+            switch (type) {
+                case '双向交互': return 'bg-green-600 bg-opacity-30 text-green-400';
+                case '单向主导': return 'bg-blue-600 bg-opacity-30 text-blue-400';
+                case '可疑交易': return 'bg-red-600 bg-opacity-30 text-red-400';
+                default: return 'bg-gray-600 bg-opacity-30 text-gray-400';
+            }
+        }
+
+        // 初始化网络图
+        function initNetworkGraph() {
+            const container = document.getElementById('network-graph');
+            
+            const data = {
+                nodes: new vis.DataSet([
+                    { id: 1, label: '张三', color: '#00d4ff', size: 30 },
+                    { id: 2, label: '李四', color: '#00d4ff', size: 25 },
+                    { id: 3, label: '王五', color: '#00d4ff', size: 20 },
+                    { id: 4, label: '赵六', color: '#00d4ff', size: 20 },
+                    { id: 5, label: '钱七', color: '#00d4ff', size: 15 }
+                ]),
+                edges: new vis.DataSet([])
+            };
+            
+            const options = {
+                nodes: {
+                    font: { color: '#ffffff', size: 14 },
+                    borderWidth: 2,
+                    borderWidthSelected: 3
+                },
+                edges: {
+                    color: { color: '#00d4ff', highlight: '#ff6b35' },
+                    width: 2,
+                    smooth: { type: 'continuous' }
+                },
+                physics: {
+                    stabilization: false,
+                    barnesHut: {
+                        gravitationalConstant: -80000,
+                        springConstant: 0.001,
+                        springLength: 200
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200
+                }
+            };
+            
+            window.networkGraph = new vis.Network(container, data, options);
+        }
+
+        // 更新网络图
+        function updateNetworkGraph(data) {
+            const nodes = window.networkGraph.body.data.nodes;
+            const edges = window.networkGraph.body.data.edges;
+            
+            // 清空现有边
+            edges.clear();
+            
+            // 添加新的边
+            data.forEach((item, index) => {
+                const fromId = getNodeIdByLabel(nodes, item.from);
+                const toId = getNodeIdByLabel(nodes, item.to);
+                
+                if (fromId && toId) {
+                    edges.add({
+                        id: index,
+                        from: fromId,
+                        to: toId,
+                        value: item.amount / 10000, // 根据金额调整边的粗细
+                        title: `交易次数: ${item.count}<br>总金额: ¥${item.amount.toLocaleString()}<br>类型: ${item.type}`
+                    });
+                }
+            });
+        }
+
+        // 根据标签获取节点ID
+        function getNodeIdByLabel(nodes, label) {
+            const nodeArray = nodes.get();
+            const node = nodeArray.find(n => n.label === label);
+            return node ? node.id : null;
+        }
+
+        // 重置筛选条件
+        function resetFilters() {
+            document.getElementById('case-select').value = '';
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.getElementById('start-date').value = '2024-01-01';
+            document.getElementById('end-date').value = '2024-12-31';
+            document.getElementById('min-amount').value = '0';
+            document.getElementById('max-amount').value = '1000000';
+            document.getElementById('interaction-type').value = 'all';
+        }
+
+        // 导出CSV
+        function exportToCSV() {
+            const data = generateMockAnalysisResults();
+            const csvContent = generateCSVContent(data);
+            downloadCSV(csvContent, '资金交互分析结果.csv');
+        }
+
+        // 生成CSV内容
+        function generateCSVContent(data) {
+            const headers = ['交易双方A', '交易双方B', '交易次数', '总金额', '交互类型', '首次交易', '末次交易'];
+            const rows = data.map(item => [
+                item.from, item.to, item.count, item.amount, item.type, item.firstDate, item.lastDate
+            ]);
+            
+            return [headers, ...rows].map(row => row.join(',')).join('\n');
+        }
+
+        // 下载CSV文件
+        function downloadCSV(content, filename) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+        // 刷新结果
+        function refreshResults() {
+            displayAnalysisResults();
+        }
+
+        // 显示交易详情
+        window.showTransactionDetails = function(from, to) {
+            alert(`查看 ${from} 和 ${to} 之间的详细交易记录`);
+        };
+    </script>
+</body>
+</html>
