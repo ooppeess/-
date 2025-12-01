@@ -5,33 +5,74 @@
 import io
 import pandas as pd
 import numpy as np
+from io import BytesIO
 from typing import Tuple, Optional, cast
 from .base_cleaner import BaseCleaner
 
 
 class TenpayCleaner(BaseCleaner):
-    """财付通文件清洗器（整合TT/cleaner.py逻辑）"""
-    
-    def clean(self, file_path: str, case_name: str, case_id: str, 
-              person_type: str, source_type: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
-        """
-        清洗财付通文件（整合TT/cleaner.py的完整逻辑）
-        
-        Args:
-            file_path: 文件路径
-            case_name: 案件名称
-            case_id: 案件编号
-            person_type: 人员身份
-            source_type: 账单类型
-            
-        Returns:
-            Tuple[Optional[pd.DataFrame], Optional[str]]: (数据框, 错误信息)
-        """
+    def clean(self, file_content: bytes = None, filename: str = "", **kwargs) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         try:
-            df = self._read_tenpay_table(file_path)
-            return self._clean_tenpay_data(df, case_name, case_id, person_type, source_type)
+            if file_content is None and "file_path" in kwargs:
+                with open(kwargs["file_path"], "rb") as f:
+                    file_content = f.read()
+            if file_content is None:
+                return None, "缺少文件内容"
+            try:
+                df = pd.read_csv(BytesIO(file_content), sep='\t', encoding='utf-8', on_bad_lines='skip')
+            except UnicodeDecodeError:
+                df = pd.read_csv(BytesIO(file_content), sep='\t', encoding='gb18030', on_bad_lines='skip')
+            df.columns = [str(c).strip() for c in df.columns]
+            standard_df = pd.DataFrame()
+            if '交易金额(分)' in df.columns:
+                standard_df['金额(元)'] = df['交易金额(分)'].astype(str).str.replace(',', '').astype(float) / 100
+            else:
+                standard_df['金额(元)'] = 0.0
+            if '交易时间' in df.columns:
+                standard_df['交易时间'] = pd.to_datetime(df['交易时间'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                standard_df['交易时间'] = ''
+            if '交易单号' in df.columns:
+                standard_df['交易单号'] = df['交易单号'].astype(str).str.strip()
+            else:
+                standard_df['交易单号'] = ''
+            standard_df['收/支/其他'] = df['借贷类型'] if '借贷类型' in df.columns else ''
+            if '对手侧账户名称' in df.columns:
+                standard_df['交易对方'] = df['对手侧账户名称']
+            elif '第三方账户名称' in df.columns:
+                standard_df['交易对方'] = df['第三方账户名称']
+            elif '对手方ID' in df.columns:
+                standard_df['交易对方'] = df['对手方ID']
+            else:
+                standard_df['交易对方'] = ''
+            if '交易业务类型' in df.columns:
+                standard_df['交易类型'] = df['交易业务类型']
+            else:
+                standard_df['交易类型'] = ''
+            if '交易用途类型' in df.columns:
+                standard_df['交易方式'] = df['交易用途类型']
+            else:
+                standard_df['交易方式'] = ''
+            if '大单号' in df.columns:
+                standard_df['商户单号'] = df['大单号']
+            elif '商户单号' in df.columns:
+                standard_df['商户单号'] = df['商户单号']
+            else:
+                standard_df['商户单号'] = ''
+            owner_name = kwargs.get('owner_name', None)
+            if owner_name is None:
+                owner_name = (df['用户侧账号名称'].iloc[0] if '用户侧账号名称' in df.columns and not df.empty else '未知')
+            standard_df['姓名'] = owner_name
+            standard_df['身份证'] = kwargs.get('id_card', '')
+            standard_df['微信号'] = kwargs.get('wechat_id', '')
+            cols = ["姓名", "身份证", "微信号", "交易单号", "交易时间", "交易类型", "收/支/其他", "交易方式", "金额(元)", "交易对方", "商户单号"]
+            for c in cols:
+                if c not in standard_df.columns:
+                    standard_df[c] = ''
+            standard_df = standard_df[cols]
+            return standard_df, None
         except Exception as e:
-            return None, f"财付通文件解析失败：{str(e)}"
+            return None, f"财付通清洗失败：{e}"
     
     def _read_tenpay_table(self, path: str) -> pd.DataFrame:
         """

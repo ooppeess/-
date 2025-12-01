@@ -58,17 +58,26 @@ async def data_visualization(request: Request):
 # --- 核心 API：上传与入库 ---
 @app.post("/api/upload")
 async def upload_file(
-    files: list[UploadFile] = File(...),
-    case_name: str = Form(...),
-    case_id: str = Form(...),
-    file_configs: str = Form(...)
+    files: list[UploadFile] = File(None),
+    file: UploadFile | None = File(None),
+    case_name: str = Form(""),
+    case_id: str = Form(""),
+    file_configs: str = Form("{}")
 ):
+    # 兼容单文件字段名为 file 的情况
+    if (not files or len(files) == 0) and file is not None:
+        files = [file]
     if not files:
         return {"status": "error", "message": "未选择文件"}
+    if not case_name or not case_id:
+        return {"status": "error", "message": "请填写案件名称和编号"}
 
     try:
-        configs = json.loads(file_configs)
-    except:
+        configs = json.loads(file_configs) if file_configs else {}
+        if isinstance(configs, list):
+            # 兼容列表结构，转换为按文件名的字典
+            configs = {c.get('filename', f"file_{i}"): {"type": c.get('type', '排查人员'), "unit": c.get('unit', 'yuan')} for i, c in enumerate(configs)}
+    except Exception:
         configs = {}
 
     success_count = 0

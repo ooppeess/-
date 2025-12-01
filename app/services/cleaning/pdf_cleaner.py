@@ -1,46 +1,59 @@
 import pdfplumber
 import pandas as pd
+import io
 import re
 from typing import Tuple, Optional
 from .base_cleaner import BaseCleaner
 
 class PDFCleaner(BaseCleaner):
-    def clean(self, file_path: str, case_name: str, case_id: str, 
-              person_type: str, source_type: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    def clean(self, file_content: bytes = None, filename: str = "", **kwargs) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         try:
-            all_tables = []
-            
-            with pdfplumber.open(file_path) as pdf:
+            if file_content is None:
+                file_path = kwargs.get('file_path')
+                if not file_path:
+                    return None, "缺少PDF内容或文件路径"
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+
+            transactions = []
+            user_info = {"name": "", "id_card": "", "wechat_id": ""}
+
+            with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                first_page_text = pdf.pages[0].extract_text() or ""
+                name_match = re.search(r"兹证明:(.*?)\(", first_page_text)
+                id_match = re.search(r"身份证:(.*?)\)", first_page_text)
+                if name_match:
+                    user_info['name'] = name_match.group(1).strip()
+                if id_match:
+                    user_info['id_card'] = id_match.group(1).strip()
+
                 for page in pdf.pages:
-                    # 提取表格
-                    tables = page.extract_tables()
-                    for table in tables:
-                        # 简单的有效性判断：列数大于3且不是纯空
-                        if table and len(table) > 1 and len(table[0]) > 3:
-                            # 将第一行设为表头
-                            df_page = pd.DataFrame(table[1:], columns=table[0])
-                            all_tables.append(df_page)
+                    table = page.extract_table()
+                    if not table:
+                        continue
+                    for row in table:
+                        if not row or len(row) < 5 or ("交易单号" in str(row[0])):
+                            continue
+                        try:
+                            amt_str = (row[5] if len(row) > 5 else "").replace('¥', '').replace(',', '').strip()
+                            amt_val = float(amt_str) if amt_str else 0.0
+                            item = {
+                                "交易单号": str(row[0]).strip(),
+                                "交易时间": str(row[1]).replace('\n', ' '),
+                                "交易类型": str(row[2]).strip(),
+                                "收/支/其他": str(row[3]).strip(),
+                                "交易方式": str(row[4]).strip(),
+                                "金额(元)": amt_val,
+                                "交易对方": str(row[6]).strip() if len(row) > 6 and row[6] is not None else "",
+                                "商户单号": str(row[7]).strip() if len(row) > 7 and row[7] is not None else "",
+                                "姓名": user_info['name'],
+                                "身份证": user_info['id_card'],
+                            }
+                            transactions.append(item)
+                        except Exception:
+                            continue
 
-            if not all_tables:
-                return None, "未在PDF中识别到有效表格"
-
-            # 合并所有页的表格
-            df = pd.concat(all_tables, ignore_index=True)
-            
-            # --- 标准化处理 ---
-            # 1. 去除换行符
-            df = df.replace(r'\n', '', regex=True)
-            
-            # 2. 补充案件信息
-            df['案件名称'] = case_name
-            df['案件编号'] = case_id
-            df['人员身份'] = person_type
-            df['账单来源'] = "PDF导入"
-
-            # 3. 简单的列名清洗 (去除空格)
-            df.columns = [c.replace(" ", "").replace("\n", "") if c else f"col_{i}" for i, c in enumerate(df.columns)]
-
+            df = pd.DataFrame(transactions)
             return df, None
-
         except Exception as e:
-            return None, f"PDF解析失败: {str(e)}"
+            return None, f"PDF清洗失败: {e}"

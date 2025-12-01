@@ -103,8 +103,10 @@ class UploadManager {
     }
 
     async uploadAll() {
-        const caseName = document.getElementById('upload-case-name').value.trim();
-        const caseId = document.getElementById('upload-case-id').value.trim();
+        let caseName = document.getElementById('upload-case-name')?.value?.trim() || '';
+        let caseId = document.getElementById('upload-case-id')?.value?.trim() || '';
+        if (!caseName) caseName = document.getElementById('cm-case-name')?.value?.trim() || '';
+        if (!caseId) caseId = document.getElementById('cm-case-id')?.value?.trim() || '';
         const statusEl = document.getElementById('upload-status-msg');
         const btn = document.getElementById('start-upload-btn');
         if (!caseName || !caseId) { alert('请填写案件名称和编号'); return; }
@@ -121,10 +123,10 @@ class UploadManager {
         try {
             const res = await fetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
-            if (data.status === 'success') {
+            if (res.ok && data.status === 'success') {
                 if (statusEl) { statusEl.textContent = '全部处理完成！正在刷新...'; statusEl.className = 'mr-auto self-center text-sm text-green-400'; }
                 setTimeout(() => window.location.reload(), 1000);
-            } else { throw new Error(data.message); }
+            } else { throw new Error(data.message || `上传失败 (${res.status})`); }
         } catch (e) {
             if (statusEl) { statusEl.textContent = '上传失败: ' + e.message; statusEl.className = 'mr-auto self-center text-sm text-red-400'; }
             btn.disabled = false;
@@ -134,3 +136,21 @@ class UploadManager {
 }
 
 window.uploadManager = new UploadManager();
+
+// 兼容旧调用路径：一些页面可能仍调用 startUploadProcess / uploadFiles
+// 统一转发到新的 UploadManager 实例
+window.startUploadProcess = function() {
+    try { window.uploadManager.uploadAll(); } catch (e) { console.error(e); }
+};
+
+window.uploadFiles = function(fileList) {
+    try {
+        if (!fileList) return;
+        const files = Array.from(fileList);
+        window.uploadManager.addFiles(files);
+        // 若已有案件信息，直接触发上传
+        window.uploadManager.uploadAll();
+    } catch (e) {
+        console.error(e);
+    }
+};
